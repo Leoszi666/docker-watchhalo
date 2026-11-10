@@ -279,14 +279,25 @@ docker rm -f crash-test clean-exit
 
 ## Screenshots
 
+**Dashboard — all containers running**
 
-| File | What it shows |
-|---|---|
-| `docs/screenshots/dashboard.png` | Main dashboard, all containers running |
-| `docs/screenshots/exited.png` | One container stopped; attention panel visible |
-| `docs/screenshots/snapshot.png` | Snapshot drawer with saved history |
-| `docs/screenshots/docker-images.png` | `docker images` output showing image size |
-| `docs/screenshots/compose-ps.png` | `docker compose ps` with db and cache healthy |
+![Dashboard](docs/screenshots/dashboard.png)
+
+**Exited container — attention panel visible**
+
+![Exited](docs/screenshots/exited.png)
+
+**Snapshot drawer with saved history**
+
+![Snapshot](docs/screenshots/snapshot.png)
+
+**Docker images — multi-stage build output**
+
+![Docker images](docs/screenshots/docker-images.png)
+
+**docker compose ps — db and cache healthy**
+
+![Compose ps](docs/screenshots/compose-ps.png)
 
 ---
 
