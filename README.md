@@ -279,23 +279,28 @@ docker rm -f crash-test clean-exit
 
 ## Screenshots
 
-**Dashboard — all containers running**
+### Main Dashboard
+All containers running normally without errors.
 
 ![Dashboard](docs/screenshots/dashboard.png)
 
-**Exited container — attention panel visible**
+### Attention Panel (Exited Container)
+Highlights stopped containers and exit codes at the top of the dashboard.
 
 ![Exited](docs/screenshots/exited.png)
 
-**Snapshot drawer with saved history**
+### Snapshot History Drawer
+Displays saved container states and notes over time.
 
 ![Snapshot](docs/screenshots/snapshot.png)
 
-**Docker images — multi-stage build output**
+### Docker Images Output
+Multi-stage build output showing optimized image sizes.
 
 ![Docker images](docs/screenshots/docker-images.png)
 
-**docker compose ps — db and cache healthy**
+### Docker Compose Status
+Service verification showing `app`, `db`, and `cache` containers healthy.
 
 ![Compose ps](docs/screenshots/compose-ps.png)
 
