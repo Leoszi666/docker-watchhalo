@@ -1,0 +1,70 @@
+@import '@fontsource-variable/inter';
+@import '@fontsource/jetbrains-mono';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-canvas font-sans text-ink antialiased;
+    font-size: 13px;
+  }
+
+  ::selection {
+    @apply bg-blue/30 text-ink;
+  }
+}
+
+@layer components {
+  /* Shared keyboard focus style for every interactive element (design.md §10).
+     Docker-blue, matching the accent used across the app. */
+  .dw-focus {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue;
+  }
+}
+
+/* The only entrance animations in the app (besides Tailwind's animate-pulse
+   skeletons): drawer slide-in and toast/backdrop fade. */
+@keyframes dw-slide-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes dw-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.dw-animate-in {
+  animation: dw-slide-in 180ms ease-out;
+}
+
+.dw-fade-in {
+  animation: dw-fade-in 150ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
