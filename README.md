@@ -1,38 +1,51 @@
 # DockerWatch Lite
 
-A lightweight web dashboard that reads Docker containers on the host machine, shows their status and memory usage, and lets you record **audit snapshots** into PostgreSQL.
+A lightweight web dashboard that reads the Docker containers on the host machine, shows their status and memory usage, and lets you record **audit snapshots** into PostgreSQL.
 
-**Quick start:** one command starts the full stack. Cost: Rp0. Everything is open source.
+**Quick start:** one command starts the full stack. Every component is free and open source.
+
+## Contents
+
+- [Features](#features)
+- [Architecture](#architecture)
+- [Prerequisites](#prerequisites)
+- [Quickstart](#quickstart)
+- [Environment variables](#environment-variables)
+- [Optional: database UI (Adminer)](#optional-database-ui-adminer)
+- [Development without Docker](#development-without-docker)
+- [API reference](#api-reference)
+- [Project structure](#project-structure)
+- [Safety notes](#safety-notes)
+- [Discord alerting](#discord-alerting)
 
 ---
 
-## What it does
+## Features
 
 - Lists all containers: name, image, state, ports, networks, IP, and mounts.
-- Summary row: total / running / exited / high-memory count.
-- Memory bar per running container. Warning at ≥ 70 %. Critical at ≥ 85 %.
+- Summary row: total, running, exited, and high-memory counts.
+- Memory bar per running container. Warning at 70% or more. Critical at 85% or more.
 - Filter bar: ALL / RUNNING / EXITED / HIGH_MEM. Search by name.
 - Read-only inspect panel per container (networks, mounts, healthcheck state).
 - Host info from Docker: OS, kernel version, engine version, CPU count, total RAM.
 - Audit snapshots: `POST /api/snapshots` sends only `{tag, note}`. The **server** reads the Docker state at save time. The browser cannot change the numbers.
 - Snapshots survive a stack restart. Data lives in a named volume.
 - Redis cache in front of the Docker socket (key `containers:v1`, TTL 5 s). If Redis is down, the app reads directly from Docker. The response always includes `cached: true/false`.
-- Demo advantage: the dashboard monitors its own compose stack (app, db, cache). Run `docker stop dockerwatch-cache` and the UI shows "exited" immediately.
-
-**Bonus feature:** Discord crash alerting. See [Discord alerting](#discord-alerting).
+- Self-monitoring demo: the dashboard monitors its own compose stack (app, db, cache). Run `docker stop dockerwatch-cache` and the UI shows "exited" immediately.
+- Optional Discord crash alerting. See [Discord alerting](#discord-alerting).
 
 ---
 
 ## Architecture
 
 ```
-Browser → http://localhost:3000
-  └─ app  (Node.js 22 + Express, serves API and built React frontend)   [mem_limit 256m]
-       ├─ /var/run/docker.sock  (read-only mount)  — read via dockerode
-       ├─ cache  (Redis 7.4-alpine, internal port 6379, TTL 5 s)        [mem_limit 128m]
-       ├─ db     (PostgreSQL 16.4-alpine, internal port 5432)           [mem_limit 256m]
-       │            └─ named volume: pg_data
-       └─ adminer  (optional, profile "tools", host port 8080)
+Browser (http://localhost:3000)
+  └─ app — Node.js 22 + Express, serves the API and the built React frontend   [mem_limit 256m]
+       ├─ /var/run/docker.sock (read-only mount), read through dockerode
+       ├─ cache — Redis 7.4-alpine, internal port 6379, TTL 5 s               [mem_limit 128m]
+       ├─ db — PostgreSQL 16.4-alpine, internal port 5432                     [mem_limit 256m]
+       │    └─ named volume: pg_data
+       └─ adminer — optional (profile "tools"), host port 8080
 ```
 
 All services run on the user-defined bridge network `dw_net`. Services reach each other by service name (`db`, `cache`). Docker DNS resolves the names inside the network. The app port binds to `127.0.0.1` only. The dashboard has no login, so it must not be reachable from other machines on the network.
@@ -41,8 +54,8 @@ All services run on the user-defined bridge network `dw_net`. Services reach eac
 
 ## Prerequisites
 
-- Docker Engine with Compose v2 installed on the host machine.
-- The Docker socket at `/var/run/docker.sock` must be readable. On Linux, check the socket group with `stat -c '%g' /var/run/docker.sock`. Add your user to that group if needed.
+- Docker Compose v2. Docker Engine on Linux, or Docker Desktop on Windows or macOS.
+- The Docker socket at `/var/run/docker.sock` must be readable. On Linux, check the socket group with `stat -c '%g' /var/run/docker.sock`. Add your user to that group if needed. Docker Desktop supplies the socket automatically.
 - Ports 3000 (and 8080 for Adminer) must be free on the host.
 
 ---
@@ -66,9 +79,11 @@ docker compose up -d --build
 ```
 Result: Docker builds the app image, pulls `postgres:16.4-alpine3.20` and `redis:7.4.0-alpine`, and starts all three services. The db and cache services must pass their healthchecks before the app starts.
 
+> The app image is also published on Docker Hub as [`leoszi777/dockerwatch:1.0.0`](https://hub.docker.com/r/leoszi777/dockerwatch). Compose builds the same image locally.
+
 **Step 5.** Open `http://localhost:3000` in a browser.
 
-Result: the dashboard shows the running containers with live status and memory usage.
+Result: the dashboard shows the running containers with live status and memory usage. The first start takes about 15 seconds, because the app waits for the db and cache healthchecks.
 
 ---
 
@@ -91,7 +106,7 @@ Do not commit `.env`. The `.gitignore` file excludes it. Commit `.env.example` i
 
 **Step 1.** Open your Discord server. Go to the channel where you want to receive alerts.
 
-**Step 2.** Click the gear icon next to the channel name → **Integrations** → **Webhooks** → **New Webhook**.
+**Step 2.** Click the gear icon next to the channel name. Open **Integrations**, then **Webhooks**, then **New Webhook**.
 
 **Step 3.** Give the webhook a name (e.g. `DockerWatch`). Click **Copy Webhook URL**.
 
@@ -125,7 +140,7 @@ npm install
 ```bash
 npm start
 ```
-Result: the API runs on port 3000. It connects to your local Docker socket, Postgres, and Redis. Set `DATABASE_URL` and `REDIS_URL` as environment variables or in a `.env` file.
+Result: the API runs on port 3000. It connects to your local Docker socket and to the Postgres and Redis servers that `DATABASE_URL` and `REDIS_URL` point to. Set these values as environment variables or in a `.env` file.
 
 **Step 3.** In a second terminal, start the Vite dev server.
 ```bash
@@ -143,7 +158,7 @@ Result: the dev server runs on port 5173. `vite.config.js` proxies `/api` and `/
 | GET | `/api/containers` | Host info + container list | `200 {cached, updatedAt, host, containers[]}` | `503` when Docker socket is unreachable |
 | POST | `/api/snapshots` | Save a snapshot `{tag, note}` | `201` snapshot object | `400` for invalid input |
 | GET | `/api/snapshots` | 20 newest snapshots, newest first | `200 Snapshot[]` | `500` when db is unreachable |
-| POST | `/api/containers/:id/alert` | Send manual Discord crash alert | `200` | `400` exit 0; `404` not found; `429` cooldown active; `503` webhook not set |
+| POST | `/api/containers/:id/alert` | Send manual Discord crash alert | `200` | `400` when the exit code is 0; `404` unknown id; `429` cooldown active; `503` webhook not set |
 
 **Valid tags for POST /api/snapshots:** `ROUTINE_CHECK`, `INCIDENT_AUDIT`, `PRE_DEPLOY`, `POST_DEPLOY`.
 
@@ -151,9 +166,9 @@ Result: the dev server runs on port 5173. `vite.config.js` proxies `/api` and `/
 
 **Snapshot field names** are camelCase: `id`, `hostName`, `tag`, `note`, `runningCount`, `totalCount`, `containers` (`[{id, name, state, mem}]`), `createdAt`.
 
-### Verification procedure
+### Verify the installation
 
-Run these steps to verify the stack after `docker compose up -d --build`.
+Run these steps after `docker compose up -d --build`.
 
 **Step 1.** Check the health endpoint.
 ```bash
@@ -167,7 +182,7 @@ curl -i http://localhost:3000/api/containers
 ```
 Expected result: HTTP `200`.
 
-**Step 3.** Save a snapshot.
+**Step 3.** Save a snapshot. Note the `id` in the response.
 ```bash
 curl -i -X POST http://localhost:3000/api/snapshots \
   -H 'Content-Type: application/json' \
@@ -193,11 +208,17 @@ docker compose down
 docker compose up -d
 ```
 
-**Step 7.** Get the snapshots.
+**Step 7.** Wait until the app is ready.
 ```bash
-curl http://localhost:3000/api/snapshots
+sleep 15 && curl -f http://localhost:3000/health
 ```
-Expected result: HTTP `200` and the snapshot from Step 3 is still present.
+Expected result: `{"status":"ok","db":"up","redis":"up"}`. Repeat the command if the connection is refused.
+
+**Step 8.** Get the snapshots.
+```bash
+curl -s http://localhost:3000/api/snapshots
+```
+Expected result: HTTP `200`. The snapshot from Step 3 is still present, with the same `id`.
 
 > `docker compose down -v` deletes the `pg_data` volume and all snapshot data.
 
@@ -206,14 +227,16 @@ Expected result: HTTP `200` and the snapshot from Step 3 is still present.
 ## Project structure
 
 ```
-dockerwatch/
+uts-container-monitor/
 ├── server/
 │   ├── index.js        # Express: routes + serve dist/
 │   ├── docker.js       # Read containers via dockerode
-│   ├── alerter.js      # Docker Events listener + Discord alert (bonus)
+│   ├── alerter.js      # Docker Events listener + Discord alert
 │   ├── db.js           # Postgres pool + table init
 │   └── cache.js        # Redis client (fail-safe)
 ├── src/                # React frontend (Vite)
+├── docs/               # Project assets
+├── public/             # Static assets (favicon)
 ├── index.html
 ├── package.json
 ├── vite.config.js      # Dev proxy for /api and /health
@@ -250,80 +273,52 @@ This feature is optional. It is active when `DISCORD_WEBHOOK_URL` is set in `.en
 | Manual (default) | `false` | The listener runs and logs all events. Alerts go to Discord only when the user clicks the Discord icon on a non-running container in the Snapshots drawer. |
 | Automatic | `true` | Every `die` event with an abnormal exit code sends an alert immediately. |
 
-**Anti-spam:** after an alert sends, the app sets the key `alert:cooldown:<name>` in Redis with a TTL of 300 seconds. A second alert for the same container within that window is rejected with HTTP `429`. If Redis is down, alerting continues without cooldown (fail-open).
+**Anti-spam:** after an alert sends, the app sets the key `alert:cooldown:<name>` in Redis with a TTL of 300 seconds. A second alert for the same container in that window is skipped (automatic mode) or rejected with HTTP `429` (manual endpoint). If Redis is down, alerting continues without cooldown (fail-open).
 
-**Recovery detection:** a `start` event does not immediately send a green embed. The app waits 15 seconds and inspects the container. If `State.Running === true` and `State.Restarting === false`, the app sends a recovery embed (automatic mode only) and removes the cooldown key.
+**Recovery detection (automatic mode):** a `start` event does not immediately send a green embed. The app waits 15 seconds and inspects the container. Only if `State.Running === true` and `State.Restarting === false` does the app send a recovery embed with the downtime duration and remove the cooldown key. If the container crashed again, the app cancels the recovery alert.
 
 **Exit code 0 is always ignored.** The app only alerts on abnormal exits.
 
 ### Discord alert test procedure
 
-**Step 1.** Start a container that exits with an error.
+**Step 1.** Turn on automatic alerts. Open `.env`, set `DISCORD_AUTO_ALERT=true`, then apply the change:
+```bash
+docker compose up -d
+```
+Result: Compose recreates the app container with the new value.
+
+**Step 2.** Start a container that exits with an error.
 ```bash
 docker run -d --name crash-test alpine:3.20 sh -c "echo 'ERROR: disk full'; exit 1"
 ```
-Expected result: a red Discord embed with the exit code and the last 10 log lines.
+Expected result: a red Discord embed with the container name, exit code 1 (application error), the image name, the uptime before the crash, the last 10 log lines, and a footer with the environment label and the event type.
 
-**Step 2.** Start a container that exits normally.
+**Step 3.** Start a container that exits normally.
 ```bash
 docker run -d --name clean-exit alpine:3.20 echo "done"
 ```
 Expected result: no Discord alert.
 
-**Step 3.** Remove the test containers.
+**Step 4.** Start a long-running container for the recovery test.
 ```bash
-docker rm -f crash-test clean-exit
+docker run -d --name recovery-test alpine:3.20 sleep 300
 ```
 
----
+**Step 5.** Stop it to trigger a crash alert.
+```bash
+docker stop recovery-test
+```
+Expected result: a red embed with exit code 143 (terminated).
 
-## Screenshots
+**Step 6.** Start it again to trigger recovery.
+```bash
+docker start recovery-test
+```
+Expected result: after about 15 seconds, a green recovery embed with the downtime duration.
 
-### Main Dashboard
-All containers running normally without errors.
+**Step 7.** Remove the test containers.
+```bash
+docker rm -f crash-test clean-exit recovery-test
+```
 
-![Dashboard](docs/screenshots/dashboard.png)
-
-### Attention Panel (Exited Container)
-Highlights stopped containers and exit codes at the top of the dashboard.
-
-![Exited](docs/screenshots/exited.png)
-
-### Snapshot History Drawer
-Displays saved container states and notes over time.
-
-![Snapshot](docs/screenshots/snapshot.png)
-
-### Docker Images Output
-Multi-stage build output showing optimized image sizes.
-
-![Docker images](docs/screenshots/docker-images.png)
-
-### Docker Compose Status
-Service verification showing `app`, `db`, and `cache` containers healthy.
-
-![Compose ps](docs/screenshots/compose-ps.png)
-
----
-
-## Assignment
-
-| | |
-|---|---|
-| Course | COMP6991031 |
-| NIM | 2802515141 |
-
-
----
-
-## AI Usage Declaration
-
-
-- Usage type: Partial 
-- Tools: Glm-flash, claude, gemini
-- AI-assisted parts: PRD drafting, backend discord feature, UI boilerplate from mockup
-- Parts I did myself: backend core, Dockerfile, docker-compose.yml, testing, video, article
-- Example prompts I used:
-  1. "Draft a PRD for a Docker container monitoring dashboard: features, tech stack, API spec, and test plan."
-  2. "Build the backend Discord alerting: listen to Docker die events, map exit codes, apply a 300-second Redis cooldown, and send rich embeds with the last 10 log lines."
-  3. "Create the UI boilerplate from the HTML mockup as React components with Tailwind: summary cards, container table, and snapshot drawer."
+**Step 8.** Turn automatic alerts off again. Open `.env`, set `DISCORD_AUTO_ALERT=false`, then run `docker compose up -d`.
