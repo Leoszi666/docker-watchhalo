@@ -1,29 +1,29 @@
 # ---------- Stage 1: builder ----------
-# Tag versi spesifik (bukan latest)
+# Pinned version tag (not latest)
 FROM node:22.11.0-alpine3.20 AS builder
-# Semua perintah berikutnya berjalan di /app
+# All later commands run in /app
 WORKDIR /app
-# Dependency dulu, supaya layer cache terpakai
+# Dependencies first, to use the layer cache
 COPY package.json package-lock.json ./
-# Install persis sesuai lockfile
+# Install exactly from the lockfile
 RUN npm ci
-# Baru source code (sering berubah)
+# Source code last (it changes often)
 COPY . .
-# Vite membuild frontend ke /app/dist
+# Vite builds the frontend to /app/dist
 RUN npm run build
-# Buang devDependencies
+# Drop the devDependencies
 RUN npm prune --omit=dev
 
 # ---------- Stage 2: runtime ----------
 FROM node:22.11.0-alpine3.20 AS runtime
 ENV NODE_ENV=production PORT=3000
 WORKDIR /app
-# Hanya prod dependencies dan hasil build yang disalin
+# Copy only the prod dependencies and the build output
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY server ./server
 COPY package.json ./
-# Dokumentasi port (bukan publish)
+# Port documentation (not publish)
 EXPOSE 3000
 # Exec form
 CMD ["node", "server/index.js"]
